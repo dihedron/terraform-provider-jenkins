@@ -1,0 +1,16 @@
+version: '2'
+services:
+  jenkins:
+    environment:
+      JENKINS_XXX: "Something"
+      JENKINS_YYY: "SomethingElse"
+    image: library/jenkins:latest
+    volumes:
+      - /srv/jenkins:/var/jenkins_home
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    expose:
+      - "8080"
+      - "50000"
+  
