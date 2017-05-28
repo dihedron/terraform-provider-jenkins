@@ -1,2 +1,2 @@
-# go-jenkins
-A library to allow interaction with JenkinsCI from Golang programs.
+# terraform-provider-jenkins
+A Terraform plugin to enable JenkinsCI manipulation from Terraform.
