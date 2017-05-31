@@ -9,10 +9,10 @@ import (
 
 func resourceJenkinsJob() *schema.Resource {
 	return &schema.Resource{
-		//Create: resourceJenkinsJobCreate,
-		Read: resourceJenkinsJobRead,
+		Create: resourceJenkinsJobCreate,
+		Read:   resourceJenkinsJobRead,
 		//Update: resourceJenkinsJobUpdate,
-		//Delete: resourceJenkinsJobDelete,
+		Delete: resourceJenkinsJobDelete,
 		Exists: resourceJenkinsJobExists,
 
 		/*
@@ -22,36 +22,365 @@ func resourceJenkinsJob() *schema.Resource {
 		*/
 		Schema: map[string]*schema.Schema{
 			"name": &schema.Schema{
+				// this is the job's ID
 				Type:        schema.TypeString,
-				Description: "The name of the JenkinsCi job.",
+				Description: "The name of the JenkinsCI job.",
 				Required:    true,
 				ForceNew:    true,
 			},
-			/*
-				"object_classes": &schema.Schema{
-					Type:        schema.TypeSet,
-					Description: "The set of classes this object conforms to (e.g. organizationalUnit, inetOrgPerson).",
-					Elem:        &schema.Schema{Type: schema.TypeString},
-					Set:         schema.HashString,
-					Required:    true,
-				},
-				"attributes": &schema.Schema{
-					Type:        schema.TypeSet,
-					Description: "The map of attributes of this object; each attribute can be multi-valued.",
-					Set:         attributeHash,
-					MinItems:    0,
+			"description": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "The (optional) description of the JenkinsCI job.",
+				Optional:    true,
+				ForceNew:    true, // TODO:remove once update is available
+				//
+				// goes into:
+				// <description>This is the pipeline-archetype description</description>
+				//
+			},
 
-					Elem: &schema.Schema{
-						Type:        schema.TypeMap,
-						Description: "The list of values for a given attribute.",
-						MinItems:    1,
-						MaxItems:    1,
-						Elem: &schema.Schema{
-							Type:        schema.TypeString,
-							Description: "The individual value for the given attribute.",
+			/*
+				"build_discard_policy": {
+					Type: schema.TypeList,
+					Description: "Determines when, if ever, build records for this project should be discarded. Build records " +
+						"include the console output, archived artifacts, and any other metadata related to a particular build.",
+					MinItems: 1,
+					MaxItems: 1,
+					Optional: true,
+					ForceNew: true, // TODO: remove
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"days_to_keep_builds": &schema.Schema{
+								Type:        schema.TypeInt,
+								Description: "If not empty, build records are only kept up to this number of days.",
+								Default:     0,
+								Optional:    true,
+								ForceNew:    true, // TODO:remove
+							},
+							"max_n_of_builds_to_keep": &schema.Schema{
+								Type:        schema.TypeInt,
+								Description: "If not empty, only up to this number of build records are kept.",
+								Default:     0,
+								Optional:    true,
+								ForceNew:    true, // TODO:remove
+							},
+							"days_to_keep_artifacts": &schema.Schema{
+								Type:        schema.TypeInt,
+								Description: "If not empty, artifacts from builds older than this number of days will be deleted, but the logs, history, reports, etc for the build will be kept.",
+								Default:     0,
+								Optional:    true,
+								ForceNew:    true,
+							},
+							"max_n_of_builds_to_keep_with_artifacts": &schema.Schema{
+								Type:        schema.TypeInt,
+								Description: "If not empty, only up to this number of builds have their artifacts retained.",
+								Default:     0,
+								Optional:    true,
+								ForceNew:    true, // TODO:remove
+							},
+						},
+						//
+						// goes into:
+						//    <jenkins.model.BuildDiscarderProperty>
+						//       <strategy class="hudson.tasks.LogRotator">
+						//         <daysToKeep>1</daysToKeep>
+						//         <numToKeep>2</numToKeep>
+						//         <artifactDaysToKeep>3</artifactDaysToKeep>
+						//         <artifactNumToKeep>4</artifactNumToKeep>
+						//       </strategy>
+						//     </jenkins.model.BuildDiscarderProperty>
+						// along with the following four parameters.
+						//
+					},
+				},
+				"disallow_concurrent_builds": &schema.Schema{
+					Type:        schema.TypeBool,
+					Description: "Determines when if multiple builds of the project can be run in parallel.",
+					Default:     false,
+					Optional:    true,
+					ForceNew:    true, // TODO:remove
+					//
+					// goes into:
+					// <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+					//
+				},
+				"github_project": {
+					Type:        schema.TypeList,
+					Description: "If present, indicates that the project sources are hosted on GitHub at the given URL.",
+					Optional:    true,
+					ForceNew:    true,
+					MinItems:    1,
+					MaxItems:    1,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"project_url": &schema.Schema{
+								Type: schema.TypeString,
+								Description: "The URL for the GitHub hosted project (without the tree/master or tree/branch part); " +
+									"or example: http://github.com/rails/rails for the Rails project.",
+								Required: true,
+								ForceNew: true, // TODO:remove
+							},
+							"display_name": &schema.Schema{
+								Type: schema.TypeString,
+								Description: "The context name for commit status if status builder or status publisher is defined " +
+									"for this project; it should be small and clear; if empty, the job name will be used for builder " +
+									"and publisher.",
+								Optional: true,
+								ForceNew: true, // TODO:remove
+							},
+						},
+						//
+						// goes into:
+						//	  <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.27.0">
+						//	    <projectUrl>http://github.com/dihedron/libjpp/</projectUrl>
+						//	    <displayName>Display name!!!</displayName>
+						//	  </com.coravy.hudson.plugins.github.GithubProjectProperty>
+						//
+					},
+				},
+				"parameters": {
+					Type: schema.TypeMap,
+					Description: "Parameters are used to prompt users for one or more inputs that will be passed into the build; " +
+						"each parameter has a Name and a Value, depending on the type, and is exported as environment variables " +
+						"when the build starts, to be accessed as ${PARAMETER_NAME} (or %PARAMETER_NAME% under Windows).",
+					Optional: true,
+					ForceNew: true, // TODO: remove
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"type": {
+								Type:        schema.TypeString,
+								Description: "The default value of the field, which allows the user to save typing the actual value.",
+								Required:    true,
+								ForceNew:    true, // TODO: remove
+								ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
+									"boolean", "choice", "credentials", "file", "list_subversion_tags",
+									"multiline_strings", "password", "run", "string",
+								}),
+							},
+							"default_value": {
+								Type:        schema.TypeString,
+								Description: "The default value of the field, which allows the user to save typing the actual value.",
+								Optional:    true,
+								ForceNew:    true, // TODO: remove
+							},
+							"description": {
+								Type:        schema.TypeString,
+								Description: "A description that will be shown to the user when asking for input.",
+								Optional:    true,
+								ForceNew:    true, // TODO: remove
+							},
+							// these go into:
+							//	<hudson.model.ParametersDefinitionProperty>
+							//      <parameterDefinitions>
+							//        <hudson.model.PasswordParameterDefinition>
+							//          <name>PASSWORD</name>
+							//          <description>Password description.</description>
+							//          <defaultValue>{AQAAABAAAAAQNyJ6xxd3E8vPilhXqThfsFU1glQFcw9g+jKFeGHCOXU=}</defaultValue>
+							//        </hudson.model.PasswordParameterDefinition>
+							//        <hudson.model.BooleanParameterDefinition>
+							//          <name>BOOLEAN</name>
+							//          <description>Boolean description</description>
+							//          <defaultValue>true</defaultValue>
+							//        </hudson.model.BooleanParameterDefinition>
+							//        <hudson.model.ChoiceParameterDefinition>
+							//          <name>CHOICE</name>
+							//          <description>Choice description</description>
+							//          <choices class="java.util.Arrays$ArrayList">
+							//            <a class="string-array">
+							//              <string>First</string>
+							//              <string>Second</string>
+							//              <string>Third</string>
+							//            </a>
+							//          </choices>
+							//        </hudson.model.ChoiceParameterDefinition>
+							//        <com.cloudbees.plugins.credentials.CredentialsParameterDefinition plugin="credentials@2.1.13">
+							//          <name>CREDENTIALS</name>
+							//          <description>Credentials description</description>
+							//          <defaultValue>USERNAME_ID</defaultValue>
+							//          <credentialType>com.cloudbees.jenkins.plugins.sshcredentials.impl.BasicSSHUserPrivateKey</credentialType>
+							//          <required>true</required>
+							//        </com.cloudbees.plugins.credentials.CredentialsParameterDefinition>
+							//        <hudson.model.FileParameterDefinition>
+							//          <name>File location</name>
+							//          <description>File description</description>
+							//        </hudson.model.FileParameterDefinition>
+							//        <hudson.scm.listtagsparameter.ListSubversionTagsParameterDefinition plugin="subversion@2.7.2">
+							//          <name>SUBVERSION</name>
+							//          <description>Select a Subversion entry</description>
+							//          <tagsDir>https://svn.alfresco.com</tagsDir>
+							//          <credentialsId>USERNAME_ID</credentialsId>
+							//          <tagsFilter>^master$</tagsFilter>
+							//          <reverseByDate>true</reverseByDate>
+							//          <reverseByName>true</reverseByName>
+							//          <defaultValue>Default value</defaultValue>
+							//          <maxTags>99</maxTags>
+							//        </hudson.scm.listtagsparameter.ListSubversionTagsParameterDefinition>
+							//        <hudson.model.TextParameterDefinition>
+							//          <name>MULTILINE</name>
+							//          <description>Multiline description</description>
+							//          <defaultValue>Default multiline</defaultValue>
+							//        </hudson.model.TextParameterDefinition>
+							//        <hudson.model.PasswordParameterDefinition>
+							//          <name>PASSWORD</name>
+							//          <description>Password description</description>
+							//          <defaultValue>{AQAAABAAAAAg/3sWZBb7pUTXQyO0jcPFc3R9MMJ/x7H0u38Ug6MKu0Kajfb2rJ7C6k/bJlKIbB/Z}</defaultValue>
+							//        </hudson.model.PasswordParameterDefinition>
+							//        <hudson.model.RunParameterDefinition>
+							//          <name>RUN</name>
+							//          <description>RUN Description</description>
+							//          <projectName>RUN_PROJECT</projectName>
+							//          <filter>COMPLETED</filter>
+							//        </hudson.model.RunParameterDefinition>
+							//        <hudson.model.StringParameterDefinition>
+							//          <name>STRING</name>
+							//          <description>String Description</description>
+							//          <defaultValue>Default String</defaultValue>
+							//        </hudson.model.StringParameterDefinition>
+							//      </parameterDefinitions>
+							//    </hudson.model.ParametersDefinitionProperty>					},
+							//
 						},
 					},
-					Optional: true,
+				},
+				"throttle_builds": {
+					Type:        schema.TypeList,
+					Description: "Enforces a minimum time between builds based on the desired maximum rate.",
+					Optional:    true,
+					ForceNew:    true,
+					MinItems:    1,
+					MaxItems:    1,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"rate": &schema.Schema{
+								Type:        schema.TypeInt,
+								Description: "The maximum number of builds allowed within the specified time period.",
+								Optional:    true,
+								ForceNew:    true, // TODO:remove
+								Default:     1,
+							},
+							"period": &schema.Schema{
+								Type:        schema.TypeString,
+								Description: "The time period within which the rate will be enforced (e.g. 2 builds per hour).",
+								Required:    true,
+								ForceNew:    true, // TODO:remove
+								ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
+									"hour", "day", "week", "month", "year",
+								}),
+							},
+						},
+						//
+						// goes into:
+						//    <jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl plugin="branch-api@2.0.9">
+						//      <durationName>week</durationName>
+						//      <count>2</count>
+						//    </jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl>
+						//
+					},
+				},
+				"build_after": {
+					Type:        schema.TypeList,
+					Description: "The trigger so that when some other projects finish building, a new build is scheduled.",
+					Optional:    true,
+					ForceNew:    true,
+					MinItems:    1,
+					MaxItems:    1,
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"projects": &schema.Schema{
+								Type:        schema.TypeString,
+								Description: "The names of the projects to watch.",
+								Required:    true,
+								ForceNew:    true, // TODO:remove
+							},
+							"threshold": &schema.Schema{
+								Type:        schema.TypeString,
+								Description: "Condition under which the build is triggered (stable only, even unstable, even failed).",
+								Required:    true,
+								ForceNew:    true, // TODO:remove
+								ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
+									"success", "unstable", "failure",
+								}),
+							},
+						},
+						//
+						// goes into:
+						//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//      <triggers>
+						//        <jenkins.triggers.ReverseBuildTrigger>
+						//          <spec></spec>
+						//          <upstreamProjects>UPSTREAM_PROJECT</upstreamProjects>
+						//          <threshold>
+						//            <name>SUCCESS|UNSTABLE|FAILURE</name>
+						//            <ordinal>0|1|2</ordinal>
+						//            <color>BLUE|YELLOW|RED</color>
+						//            <completeBuild>true</completeBuild>
+						//          </threshold>
+						//        </jenkins.triggers.ReverseBuildTrigger>
+						//        [...]
+						//      </triggers>
+						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//
+					},
+				},
+
+				"periodic_build_schedule": &schema.Schema{
+					Type:        schema.TypeList,
+					Description: "Determines the schedule of periodic builds in a cron-like format.",
+					Optional:    true,
+					ForceNew:    true, // TODO:remove
+					//
+					// goes into:
+					//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//      <triggers>
+					//        [...]
+					//        <jenkins.triggers.ReverseBuildTrigger/>
+					//        <hudson.triggers.TimerTrigger>
+					//          <spec># every fifteen minutes (perhaps at :07, :22, :37, :52)
+					//H/15 * * * *
+					//# every ten minutes in the first half of every hour (three times, perhaps at :04, :14, :24)
+					//H(0-29)/10 * * * *</spec>
+					//        </hudson.triggers.TimerTrigger>
+					//      </triggers>
+					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//
+				},
+				"github_hook_trigger": &schema.Schema{
+					Type:        schema.TypeBool,
+					Description: "Upon a PUSH request from the GitHub SCM hook, Jenkins will trigger Git polling.",
+					Optional:    true,
+					ForceNew:    true, // TODO:remove
+					Default:     false,
+					// goes into:
+					//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//      <triggers>
+					//      [...]
+					//        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.27.0">
+					//          <spec></spec>
+					//        </com.cloudbees.jenkins.GitHubPushTrigger>
+					//      </triggers>
+					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//
+				},
+				"scm_poll_schedule": &schema.Schema{
+					Type:        schema.TypeList,
+					Description: "Determines the schedule of SCM polling in a cron-like format.",
+					Optional:    true,
+					ForceNew:    true, // TODO:remove
+					//
+					// goes into:
+					//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//      <triggers>
+					//      [...]
+					//        <hudson.triggers.SCMTrigger>
+					//          <spec># once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
+					//45 9-16/2 * * 1-5
+					//# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
+					//H H(9-16)/2 * * 1-5</spec>
+					//          <ignorePostCommitHooks>false|true</ignorePostCommitHooks>
+					//        </hudson.triggers.SCMTrigger>
+					//      </triggers>
+					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//
 				},
 			*/
 		},
@@ -82,60 +411,18 @@ func resourceJenkinsJobExists(d *schema.ResourceData, meta interface{}) (b bool,
 	return true, nil
 }
 
-/*
 func resourceJenkinsJobCreate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ldap.Conn)
-	dn := d.Get("dn").(string)
+	client := meta.(*jenkins.Jenkins)
 
-	log.Printf("[DEBUG] ldap_object::create - creating a new object under %q", dn)
+	name := d.Get("name").(string)
+	xml := createXML(d)
+	job, err := client.CreateJob(xml, name)
 
-	request := ldap.NewAddRequest(dn)
+	log.Printf("[DEBUG] jenkins_pipeline::create - job %q created", name)
 
-	// retrieve classe from HCL
-	objectClasses := []string{}
-	for _, oc := range (d.Get("object_classes").(*schema.Set)).List() {
-		log.Printf("[DEBUG] ldap_object::create - object %q has class: %q", dn, oc.(string))
-		objectClasses = append(objectClasses, oc.(string))
-	}
-	request.Attribute("objectClass", objectClasses)
-
-	// if there is a non empty list of attributes, loop though it and
-	// create a new map collecting attribute names and its value(s); we need to
-	// do this because we could not model the attributes as a map[string][]string
-	// due to an appareent limitation in HCL; we have a []map[string]string, so
-	// we loop through the list and accumulate values when they share the same
-	// key, then we use these as attributes in the LDAP client.
-	if v, ok := d.GetOk("attributes"); ok {
-		attributes := v.(*schema.Set).List()
-		if len(attributes) > 0 {
-			log.Printf("[DEBUG] ldap_object::create - object %q has %d attributes", dn, len(attributes))
-			m := make(map[string][]string)
-			for _, attribute := range attributes {
-				log.Printf("[DEBUG] ldap_object::create - %q has attribute of type %T", dn, attribute)
-				// each map should only have one entry (see resource declaration)
-				for name, value := range attribute.(map[string]interface{}) {
-					log.Printf("[DEBUG] ldap_object::create - %q has attribute[%v] => %v (%T)", dn, name, value, value)
-					m[name] = append(m[name], value.(string))
-				}
-			}
-			// now loop through the map and add attributes with theys value(s)
-			for name, values := range m {
-				request.Attribute(name, values)
-			}
-		}
-	}
-
-	err := client.Add(request)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[DEBUG] ldap_object::create - object %q added to LDAP server", dn)
-
-	d.SetId(dn)
-	return resourceLDAPObjectRead(d, meta)
+	d.SetId(job.GetName())
+	return err //resourceLDAPObjectRead(d, meta)
 }
-*/
 
 func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*jenkins.Jenkins)
@@ -212,24 +499,21 @@ func resourceLDAPObjectUpdate(d *schema.ResourceData, meta interface{}) error {
 	}
 	return resourceLDAPObjectRead(d, meta)
 }
+*/
 
-func resourceLDAPObjectDelete(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ldap.Conn)
-	dn := d.Get("dn").(string)
+func resourceJenkinsJobDelete(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*jenkins.Jenkins)
+	name := d.Id()
 
-	log.Printf("[DEBUG] ldap_object::delete - removing %q", dn)
+	log.Printf("[DEBUG] jenkins_pipeline::delete - removing %q", name)
 
-	request := ldap.NewDelRequest(dn, nil)
+	ok, err := client.DeleteJob(name)
 
-	err := client.Del(request)
-	if err != nil {
-		log.Printf("[ERROR] ldap_object::delete - error removing %q: %v", dn, err)
-		return err
-	}
-	log.Printf("[DEBUG] ldap_object::delete - %q removed", dn)
-	return nil
+	log.Printf("[DEBUG] jenkins_pipeline::delete - %q removed: %t", name, ok)
+	return err
 }
 
+/*
 // computes the hash of the map representing an attribute in the attributes set
 func attributeHash(v interface{}) int {
 	m := v.(map[string]interface{})
