@@ -26,4 +26,12 @@ resource "jenkins_job" "first" {
 		project_url					= "https://github.com/dihedron/libjpp"
 		display_name				= "A library to emulate Java in C++" 
 	}
+	throttle_builds					= {
+		rate						= 2
+		period						= "day"
+	}
+	build_after						= {
+		projects					= "pipeline-archetype"
+		threshold					= "success"
+	}
 }
