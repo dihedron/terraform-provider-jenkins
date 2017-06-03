@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
 func validateAllowedStringsCaseInsensitive(ss []string) schema.SchemaValidateFunc {
+	log.Printf("[DEBUG] jenkins_pipeline::validate - length of %v: %d", ss, len(ss))
 	ll := make([]string, 0, len(ss))
-	for i, s := range ss {
-		ll[i] = strings.ToLower(s)
+	for _, s := range ss {
+		ll = append(ll, strings.ToLower(s))
 	}
 	return func(v interface{}, k string) (ws []string, errors []error) {
 		value := strings.ToLower(v.(string))

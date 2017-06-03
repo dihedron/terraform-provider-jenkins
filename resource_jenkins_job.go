@@ -243,87 +243,89 @@ func resourceJenkinsJob() *schema.Resource {
 						},
 					},
 				},
-				"throttle_builds": {
-					Type:        schema.TypeList,
-					Description: "Enforces a minimum time between builds based on the desired maximum rate.",
-					Optional:    true,
-					ForceNew:    true,
-					MinItems:    1,
-					MaxItems:    1,
-					Elem: &schema.Resource{
-						Schema: map[string]*schema.Schema{
-							"rate": &schema.Schema{
-								Type:        schema.TypeInt,
-								Description: "The maximum number of builds allowed within the specified time period.",
-								Optional:    true,
-								ForceNew:    true, // TODO:remove
-								Default:     1,
-							},
-							"period": &schema.Schema{
-								Type:        schema.TypeString,
-								Description: "The time period within which the rate will be enforced (e.g. 2 builds per hour).",
-								Required:    true,
-								ForceNew:    true, // TODO:remove
-								ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
-									"hour", "day", "week", "month", "year",
-								}),
-							},
+			*/
+			"throttle_builds": {
+				Type:        schema.TypeList,
+				Description: "Enforces a minimum time between builds based on the desired maximum rate.",
+				Optional:    true,
+				ForceNew:    true,
+				MinItems:    1,
+				MaxItems:    1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"rate": &schema.Schema{
+							Type:        schema.TypeInt,
+							Description: "The maximum number of builds allowed within the specified time period.",
+							Optional:    true,
+							ForceNew:    true, // TODO:remove
+							Default:     1,
 						},
-						//
-						// goes into:
-						//    <jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl plugin="branch-api@2.0.9">
-						//      <durationName>week</durationName>
-						//      <count>2</count>
-						//    </jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl>
-						//
-					},
-				},
-				"build_after": {
-					Type:        schema.TypeList,
-					Description: "The trigger so that when some other projects finish building, a new build is scheduled.",
-					Optional:    true,
-					ForceNew:    true,
-					MinItems:    1,
-					MaxItems:    1,
-					Elem: &schema.Resource{
-						Schema: map[string]*schema.Schema{
-							"projects": &schema.Schema{
-								Type:        schema.TypeString,
-								Description: "The names of the projects to watch.",
-								Required:    true,
-								ForceNew:    true, // TODO:remove
-							},
-							"threshold": &schema.Schema{
-								Type:        schema.TypeString,
-								Description: "Condition under which the build is triggered (stable only, even unstable, even failed).",
-								Required:    true,
-								ForceNew:    true, // TODO:remove
-								ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
-									"success", "unstable", "failure",
-								}),
-							},
+						"period": &schema.Schema{
+							Type:        schema.TypeString,
+							Description: "The time period within which the rate will be enforced (e.g. 2 builds per hour).",
+							Required:    true,
+							ForceNew:    true, // TODO:remove
+							ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
+								"hour", "day", "week", "month", "year",
+							}),
 						},
-						//
-						// goes into:
-						//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//      <triggers>
-						//        <jenkins.triggers.ReverseBuildTrigger>
-						//          <spec></spec>
-						//          <upstreamProjects>UPSTREAM_PROJECT</upstreamProjects>
-						//          <threshold>
-						//            <name>SUCCESS|UNSTABLE|FAILURE</name>
-						//            <ordinal>0|1|2</ordinal>
-						//            <color>BLUE|YELLOW|RED</color>
-						//            <completeBuild>true</completeBuild>
-						//          </threshold>
-						//        </jenkins.triggers.ReverseBuildTrigger>
-						//        [...]
-						//      </triggers>
-						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//
 					},
+					//
+					// goes into:
+					//    <jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl plugin="branch-api@2.0.9">
+					//      <durationName>week</durationName>
+					//      <count>2</count>
+					//    </jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl>
+					//
 				},
+			},
 
+			"build_after": {
+				Type:        schema.TypeList,
+				Description: "The trigger so that when some other projects finish building, a new build is scheduled.",
+				Optional:    true,
+				ForceNew:    true,
+				MinItems:    1,
+				MaxItems:    1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"projects": &schema.Schema{
+							Type:        schema.TypeString,
+							Description: "The names of the projects to watch.",
+							Required:    true,
+							ForceNew:    true, // TODO:remove
+						},
+						"threshold": &schema.Schema{
+							Type:        schema.TypeString,
+							Description: "Condition under which the build is triggered (stable only, even unstable, even failed).",
+							Required:    true,
+							ForceNew:    true, // TODO:remove
+							ValidateFunc: validateAllowedStringsCaseInsensitive([]string{
+								"success", "unstable", "failure",
+							}),
+						},
+					},
+					//
+					// goes into:
+					//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//      <triggers>
+					//        <jenkins.triggers.ReverseBuildTrigger>
+					//          <spec></spec>
+					//          <upstreamProjects>UPSTREAM_PROJECT</upstreamProjects>
+					//          <threshold>
+					//            <name>SUCCESS|UNSTABLE|FAILURE</name>
+					//            <ordinal>0|1|2</ordinal>
+					//            <color>BLUE|YELLOW|RED</color>
+					//            <completeBuild>true</completeBuild>
+					//          </threshold>
+					//        </jenkins.triggers.ReverseBuildTrigger>
+					//        [...]
+					//      </triggers>
+					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//
+				},
+			},
+			/*
 				"periodic_build_schedule": &schema.Schema{
 					Type:        schema.TypeList,
 					Description: "Determines the schedule of periodic builds in a cron-like format.",
@@ -345,44 +347,45 @@ func resourceJenkinsJob() *schema.Resource {
 					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
 					//
 				},
-				"github_hook_trigger": &schema.Schema{
-					Type:        schema.TypeBool,
-					Description: "Upon a PUSH request from the GitHub SCM hook, Jenkins will trigger Git polling.",
-					Optional:    true,
-					ForceNew:    true, // TODO:remove
-					Default:     false,
-					// goes into:
-					//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-					//      <triggers>
-					//      [...]
-					//        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.27.0">
-					//          <spec></spec>
-					//        </com.cloudbees.jenkins.GitHubPushTrigger>
-					//      </triggers>
-					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-					//
-				},
-				"scm_poll_schedule": &schema.Schema{
-					Type:        schema.TypeList,
-					Description: "Determines the schedule of SCM polling in a cron-like format.",
-					Optional:    true,
-					ForceNew:    true, // TODO:remove
-					//
-					// goes into:
-					//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-					//      <triggers>
-					//      [...]
-					//        <hudson.triggers.SCMTrigger>
-					//          <spec># once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
-					//45 9-16/2 * * 1-5
-					//# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
-					//H H(9-16)/2 * * 1-5</spec>
-					//          <ignorePostCommitHooks>false|true</ignorePostCommitHooks>
-					//        </hudson.triggers.SCMTrigger>
-					//      </triggers>
-					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-					//
-				},
+
+					"github_hook_trigger": &schema.Schema{
+						Type:        schema.TypeBool,
+						Description: "Upon a PUSH request from the GitHub SCM hook, Jenkins will trigger Git polling.",
+						Optional:    true,
+						ForceNew:    true, // TODO:remove
+						Default:     false,
+						// goes into:
+						//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//      <triggers>
+						//      [...]
+						//        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.27.0">
+						//          <spec></spec>
+						//        </com.cloudbees.jenkins.GitHubPushTrigger>
+						//      </triggers>
+						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//
+					},
+					"scm_poll_schedule": &schema.Schema{
+						Type:        schema.TypeList,
+						Description: "Determines the schedule of SCM polling in a cron-like format.",
+						Optional:    true,
+						ForceNew:    true, // TODO:remove
+						//
+						// goes into:
+						//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//      <triggers>
+						//      [...]
+						//        <hudson.triggers.SCMTrigger>
+						//          <spec># once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
+						//45 9-16/2 * * 1-5
+						//# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
+						//H H(9-16)/2 * * 1-5</spec>
+						//          <ignorePostCommitHooks>false|true</ignorePostCommitHooks>
+						//        </hudson.triggers.SCMTrigger>
+						//      </triggers>
+						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+						//
+					},
 			*/
 		},
 	}
@@ -416,7 +419,7 @@ func resourceJenkinsJobCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*jenkins.Jenkins)
 
 	name := d.Get("name").(string)
-	xml := createXML(d)
+	xml := createConfigXML(d)
 	job, err := client.CreateJob(xml, name)
 
 	log.Printf("[DEBUG] jenkins_pipeline::create - job %q created", name)

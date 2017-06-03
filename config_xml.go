@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-func createXML(d *schema.ResourceData) string {
+func createConfigXML(d *schema.ResourceData) string {
 	var buffer bytes.Buffer
 	buffer.WriteString("<?xml version='1.0' encoding='UTF-8'?>\n")
 	buffer.WriteString("<flow-definition plugin=\"workflow-job@2.11\">\n")
@@ -40,11 +40,53 @@ func createXML(d *schema.ResourceData) string {
 
 	if value, ok := d.GetOk("github_project"); ok {
 		value := value.([]interface{})[0].(map[string]interface{})
-		log.Printf("[DEBUG] jenkins_pipeline::xml - type of value: %T", value)
 		buffer.WriteString("  <com.coravy.hudson.plugins.github.GithubProjectProperty plugin=\"github@1.27.0\">\n")
-		buffer.WriteString(fmt.Sprintf("   <projectUrl>%s</projectUrl>>\n", value["project_url"].(string)))
+		buffer.WriteString(fmt.Sprintf("   <projectUrl>%s</projectUrl>\n", value["project_url"].(string)))
 		buffer.WriteString(fmt.Sprintf("   <displayName>%s</displayName>\n", value["display_name"].(string)))
 		buffer.WriteString("  </com.coravy.hudson.plugins.github.GithubProjectProperty>\n")
+	}
+
+	// TODO: parameters
+
+	if value, ok := d.GetOk("throttle_builds"); ok {
+		value := value.([]interface{})[0].(map[string]interface{})
+		buffer.WriteString("  <jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl plugin=\"branch-api@2.0.9\">\n")
+		buffer.WriteString(fmt.Sprintf("   <durationName>%s</durationName>\n", value["period"].(string)))
+		buffer.WriteString(fmt.Sprintf("   <count>%d</count>\n", value["rate"].(int)))
+		buffer.WriteString("  </jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl>\n")
+	}
+
+	if value, ok := d.GetOk("build_after"); ok {
+		value := value.([]interface{})[0].(map[string]interface{})
+		log.Printf("[DEBUG] jenkins_pipeline::xml - type of value: %T", value)
+		buffer.WriteString("  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n")
+		buffer.WriteString("   <triggers>\n")
+		buffer.WriteString("    <jenkins.triggers.ReverseBuildTrigger>\n")
+		buffer.WriteString("     <spec></spec>\n")
+		buffer.WriteString(fmt.Sprintf("     <upstreamProjects>%s</upstreamProjects>\n", value["projects"].(string)))
+		buffer.WriteString("     <threshold>\n")
+		switch value["threshold"] {
+		case "success":
+			buffer.WriteString("      <name>SUCCESS</name>\n")
+			buffer.WriteString("      <ordinal>0</ordinal>\n")
+			buffer.WriteString("      <color>BLUE</color>\n")
+			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+		case "unstable":
+			buffer.WriteString("      <name>UNSTABLE</name>\n")
+			buffer.WriteString("      <ordinal>1</ordinal>\n")
+			buffer.WriteString("      <color>YELLOW</color>\n")
+			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+		case "failure":
+			buffer.WriteString("      <name>FAILURE</name>\n")
+			buffer.WriteString("      <ordinal>2</ordinal>\n")
+			buffer.WriteString("      <color>RED</color>\n")
+			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+		}
+		buffer.WriteString("     </threshold>\n")
+		buffer.WriteString("    </jenkins.triggers.ReverseBuildTrigger>\n")
+		// TODO: whatever's left to add here...
+		buffer.WriteString("   </triggers>\n")
+		buffer.WriteString("  </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n")
 	}
 
 	buffer.WriteString(" </properties>\n")
