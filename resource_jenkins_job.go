@@ -38,106 +38,107 @@ func resourceJenkinsJob() *schema.Resource {
 				// <description>This is the pipeline-archetype description</description>
 				//
 			},
-
-			/*
-				"build_discard_policy": {
-					Type: schema.TypeList,
-					Description: "Determines when, if ever, build records for this project should be discarded. Build records " +
-						"include the console output, archived artifacts, and any other metadata related to a particular build.",
-					MinItems: 1,
-					MaxItems: 1,
-					Optional: true,
-					ForceNew: true, // TODO: remove
-					Elem: &schema.Resource{
-						Schema: map[string]*schema.Schema{
-							"days_to_keep_builds": &schema.Schema{
-								Type:        schema.TypeInt,
-								Description: "If not empty, build records are only kept up to this number of days.",
-								Default:     0,
-								Optional:    true,
-								ForceNew:    true, // TODO:remove
-							},
-							"max_n_of_builds_to_keep": &schema.Schema{
-								Type:        schema.TypeInt,
-								Description: "If not empty, only up to this number of build records are kept.",
-								Default:     0,
-								Optional:    true,
-								ForceNew:    true, // TODO:remove
-							},
-							"days_to_keep_artifacts": &schema.Schema{
-								Type:        schema.TypeInt,
-								Description: "If not empty, artifacts from builds older than this number of days will be deleted, but the logs, history, reports, etc for the build will be kept.",
-								Default:     0,
-								Optional:    true,
-								ForceNew:    true,
-							},
-							"max_n_of_builds_to_keep_with_artifacts": &schema.Schema{
-								Type:        schema.TypeInt,
-								Description: "If not empty, only up to this number of builds have their artifacts retained.",
-								Default:     0,
-								Optional:    true,
-								ForceNew:    true, // TODO:remove
-							},
+			"build_discard_policy": {
+				Type: schema.TypeList,
+				Description: "Determines when, if ever, build records for this project should be discarded. Build records " +
+					"include the console output, archived artifacts, and any other metadata related to a particular build.",
+				MinItems: 1,
+				MaxItems: 1,
+				Optional: true,
+				ForceNew: true, // TODO: remove
+				//PromoteSingle: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"days_to_keep_builds": &schema.Schema{
+							Type:        schema.TypeInt,
+							Description: "If not empty, build records are only kept up to this number of days.",
+							Default:     0,
+							Optional:    true,
+							ForceNew:    true, // TODO:remove
 						},
-						//
-						// goes into:
-						//    <jenkins.model.BuildDiscarderProperty>
-						//       <strategy class="hudson.tasks.LogRotator">
-						//         <daysToKeep>1</daysToKeep>
-						//         <numToKeep>2</numToKeep>
-						//         <artifactDaysToKeep>3</artifactDaysToKeep>
-						//         <artifactNumToKeep>4</artifactNumToKeep>
-						//       </strategy>
-						//     </jenkins.model.BuildDiscarderProperty>
-						// along with the following four parameters.
-						//
+						"max_n_of_builds_to_keep": &schema.Schema{
+							Type:        schema.TypeInt,
+							Description: "If not empty, only up to this number of build records are kept.",
+							Default:     0,
+							Optional:    true,
+							ForceNew:    true, // TODO:remove
+						},
+						"days_to_keep_artifacts": &schema.Schema{
+							Type:        schema.TypeInt,
+							Description: "If not empty, artifacts from builds older than this number of days will be deleted, but the logs, history, reports, etc for the build will be kept.",
+							Default:     0,
+							Optional:    true,
+							ForceNew:    true,
+						},
+						"max_n_of_artifacts_to_keep": &schema.Schema{
+							Type:        schema.TypeInt,
+							Description: "If not empty, only up to this number of builds have their artifacts retained.",
+							Default:     0,
+							Optional:    true,
+							ForceNew:    true, // TODO:remove
+						},
 					},
-				},
-				"disallow_concurrent_builds": &schema.Schema{
-					Type:        schema.TypeBool,
-					Description: "Determines when if multiple builds of the project can be run in parallel.",
-					Default:     false,
-					Optional:    true,
-					ForceNew:    true, // TODO:remove
 					//
 					// goes into:
-					// <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+					//    <jenkins.model.BuildDiscarderProperty>
+					//       <strategy class="hudson.tasks.LogRotator">
+					//         <daysToKeep>1</daysToKeep>
+					//         <numToKeep>2</numToKeep>
+					//         <artifactDaysToKeep>3</artifactDaysToKeep>
+					//         <artifactNumToKeep>4</artifactNumToKeep>
+					//       </strategy>
+					//     </jenkins.model.BuildDiscarderProperty>
+					// along with the following four parameters.
 					//
 				},
-				"github_project": {
-					Type:        schema.TypeList,
-					Description: "If present, indicates that the project sources are hosted on GitHub at the given URL.",
-					Optional:    true,
-					ForceNew:    true,
-					MinItems:    1,
-					MaxItems:    1,
-					Elem: &schema.Resource{
-						Schema: map[string]*schema.Schema{
-							"project_url": &schema.Schema{
-								Type: schema.TypeString,
-								Description: "The URL for the GitHub hosted project (without the tree/master or tree/branch part); " +
-									"or example: http://github.com/rails/rails for the Rails project.",
-								Required: true,
-								ForceNew: true, // TODO:remove
-							},
-							"display_name": &schema.Schema{
-								Type: schema.TypeString,
-								Description: "The context name for commit status if status builder or status publisher is defined " +
-									"for this project; it should be small and clear; if empty, the job name will be used for builder " +
-									"and publisher.",
-								Optional: true,
-								ForceNew: true, // TODO:remove
-							},
+			},
+
+			"disallow_concurrent_builds": &schema.Schema{
+				Type:        schema.TypeBool,
+				Description: "Determines when if multiple builds of the project can be run in parallel.",
+				Default:     false,
+				Optional:    true,
+				ForceNew:    true, // TODO:remove
+				//
+				// goes into:
+				// <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+				//
+			},
+			"github_project": {
+				Type:        schema.TypeList,
+				Description: "If present, indicates that the project sources are hosted on GitHub at the given URL.",
+				Optional:    true,
+				ForceNew:    true,
+				MinItems:    1,
+				MaxItems:    1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"project_url": &schema.Schema{
+							Type: schema.TypeString,
+							Description: "The URL for the GitHub hosted project (without the tree/master or tree/branch part); " +
+								"or example: http://github.com/rails/rails for the Rails project.",
+							Required: true,
+							ForceNew: true, // TODO:remove
 						},
-						//
-						// goes into:
-						//	  <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.27.0">
-						//	    <projectUrl>http://github.com/dihedron/libjpp/</projectUrl>
-						//	    <displayName>Display name!!!</displayName>
-						//	  </com.coravy.hudson.plugins.github.GithubProjectProperty>
-						//
+						"display_name": &schema.Schema{
+							Type: schema.TypeString,
+							Description: "The context name for commit status if status builder or status publisher is defined " +
+								"for this project; it should be small and clear; if empty, the job name will be used for builder " +
+								"and publisher.",
+							Optional: true,
+							ForceNew: true, // TODO:remove
+						},
 					},
+					//
+					// goes into:
+					//	  <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.27.0">
+					//	    <projectUrl>http://github.com/dihedron/libjpp/</projectUrl>
+					//	    <displayName>Display name!!!</displayName>
+					//	  </com.coravy.hudson.plugins.github.GithubProjectProperty>
+					//
 				},
+			},
+			/*
 				"parameters": {
 					Type: schema.TypeMap,
 					Description: "Parameters are used to prompt users for one or more inputs that will be passed into the build; " +
