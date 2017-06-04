@@ -1,0 +1,10 @@
+dependencies:
+  override:
+    - go get -d -u github.com/hashicorp/terraform
+    - go get -d -u github.com/bndr/gojenkins
+
+test:
+  pre:
+    - go vet ./...
+  override:
+    - make test
