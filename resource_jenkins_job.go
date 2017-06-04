@@ -325,68 +325,88 @@ func resourceJenkinsJob() *schema.Resource {
 					//
 				},
 			},
-			/*
-				"periodic_build_schedule": &schema.Schema{
-					Type:        schema.TypeList,
-					Description: "Determines the schedule of periodic builds in a cron-like format.",
-					Optional:    true,
-					ForceNew:    true, // TODO:remove
+
+			"periodic_build_schedule": &schema.Schema{
+				Type: schema.TypeString,
+				Description: "Determines the schedule of periodic builds in a cron-like format; use of HEREDOC format " +
+					"is advised.",
+				Optional: true,
+				ForceNew: true, // TODO:remove
+				//
+				// goes into:
+				//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+				//      <triggers>
+				//        [...]
+				//        <jenkins.triggers.ReverseBuildTrigger/>
+				//        <hudson.triggers.TimerTrigger>
+				//          <spec># every fifteen minutes (perhaps at :07, :22, :37, :52)
+				//H/15 * * * *
+				//# every ten minutes in the first half of every hour (three times, perhaps at :04, :14, :24)
+				//H(0-29)/10 * * * *</spec>
+				//        </hudson.triggers.TimerTrigger>
+				//      </triggers>
+				//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+				//
+			},
+
+			"github_hook_trigger": &schema.Schema{
+				Type:        schema.TypeBool,
+				Description: "Upon a PUSH request from the GitHub SCM hook, Jenkins will trigger Git polling.",
+				Optional:    true,
+				ForceNew:    true, // TODO:remove
+				Default:     false,
+				// goes into:
+				//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+				//      <triggers>
+				//      [...]
+				//        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.27.0">
+				//          <spec></spec>
+				//        </com.cloudbees.jenkins.GitHubPushTrigger>
+				//      </triggers>
+				//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+				//
+			},
+
+			"scm_poll_trigger": {
+				Type:        schema.TypeList,
+				Description: "Determines the triggering of a build by polling an SCM.",
+				Optional:    true,
+				ForceNew:    true,
+				MinItems:    1,
+				MaxItems:    1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"schedule": &schema.Schema{
+							Type: schema.TypeString,
+							Description: "The schedule of SCM polling in a cron-like format; use of HEREDOC is strongly " +
+								"advised.",
+							Required: true,
+							ForceNew: true, // TODO:remove
+						},
+						"ignore_postcommit_hooks": &schema.Schema{
+							Type:        schema.TypeBool,
+							Description: "Ignore changes notified by SCM post-commit hooks.",
+							Optional:    true,
+							ForceNew:    true, // TODO:remove
+						},
+					},
 					//
 					// goes into:
-					//    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+					//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
 					//      <triggers>
-					//        [...]
-					//        <jenkins.triggers.ReverseBuildTrigger/>
-					//        <hudson.triggers.TimerTrigger>
-					//          <spec># every fifteen minutes (perhaps at :07, :22, :37, :52)
-					//H/15 * * * *
-					//# every ten minutes in the first half of every hour (three times, perhaps at :04, :14, :24)
-					//H(0-29)/10 * * * *</spec>
-					//        </hudson.triggers.TimerTrigger>
+					//      [...]
+					//        <hudson.triggers.SCMTrigger>
+					//          <spec># once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
+					//45 9-16/2 * * 1-5
+					//# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
+					//H H(9-16)/2 * * 1-5</spec>
+					//          <ignorePostCommitHooks>false|true</ignorePostCommitHooks>
+					//        </hudson.triggers.SCMTrigger>
 					//      </triggers>
 					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
 					//
 				},
-
-					"github_hook_trigger": &schema.Schema{
-						Type:        schema.TypeBool,
-						Description: "Upon a PUSH request from the GitHub SCM hook, Jenkins will trigger Git polling.",
-						Optional:    true,
-						ForceNew:    true, // TODO:remove
-						Default:     false,
-						// goes into:
-						//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//      <triggers>
-						//      [...]
-						//        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.27.0">
-						//          <spec></spec>
-						//        </com.cloudbees.jenkins.GitHubPushTrigger>
-						//      </triggers>
-						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//
-					},
-					"scm_poll_schedule": &schema.Schema{
-						Type:        schema.TypeList,
-						Description: "Determines the schedule of SCM polling in a cron-like format.",
-						Optional:    true,
-						ForceNew:    true, // TODO:remove
-						//
-						// goes into:
-						//  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//      <triggers>
-						//      [...]
-						//        <hudson.triggers.SCMTrigger>
-						//          <spec># once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
-						//45 9-16/2 * * 1-5
-						//# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
-						//H H(9-16)/2 * * 1-5</spec>
-						//          <ignorePostCommitHooks>false|true</ignorePostCommitHooks>
-						//        </hudson.triggers.SCMTrigger>
-						//      </triggers>
-						//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
-						//
-					},
-			*/
+			},
 		},
 	}
 }

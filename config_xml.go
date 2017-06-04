@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"log"
 
 	"github.com/hashicorp/terraform/helper/schema"
 )
@@ -56,35 +55,71 @@ func createConfigXML(d *schema.ResourceData) string {
 		buffer.WriteString("  </jenkins.branch.RateLimitBranchProperty_-JobPropertyImpl>\n")
 	}
 
-	if value, ok := d.GetOk("build_after"); ok {
-		value := value.([]interface{})[0].(map[string]interface{})
-		log.Printf("[DEBUG] jenkins_pipeline::xml - type of value: %T", value)
+	// there are multiple parameters that can count as triggers
+	_, ok1 := d.GetOk("build_after")
+	_, ok2 := d.GetOk("periodic_build_schedule")
+	_, ok3 := d.GetOk("github_hook_trigger")
+	_, ok4 := d.GetOk("scm_poll_trigger")
+	if ok1 || ok2 || ok3 || ok4 {
 		buffer.WriteString("  <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n")
 		buffer.WriteString("   <triggers>\n")
-		buffer.WriteString("    <jenkins.triggers.ReverseBuildTrigger>\n")
-		buffer.WriteString("     <spec></spec>\n")
-		buffer.WriteString(fmt.Sprintf("     <upstreamProjects>%s</upstreamProjects>\n", value["projects"].(string)))
-		buffer.WriteString("     <threshold>\n")
-		switch value["threshold"] {
-		case "success":
-			buffer.WriteString("      <name>SUCCESS</name>\n")
-			buffer.WriteString("      <ordinal>0</ordinal>\n")
-			buffer.WriteString("      <color>BLUE</color>\n")
-			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
-		case "unstable":
-			buffer.WriteString("      <name>UNSTABLE</name>\n")
-			buffer.WriteString("      <ordinal>1</ordinal>\n")
-			buffer.WriteString("      <color>YELLOW</color>\n")
-			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
-		case "failure":
-			buffer.WriteString("      <name>FAILURE</name>\n")
-			buffer.WriteString("      <ordinal>2</ordinal>\n")
-			buffer.WriteString("      <color>RED</color>\n")
-			buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+
+		// 1. an upstream project can trigger a build
+		if value, ok := d.GetOk("build_after"); ok {
+			value := value.([]interface{})[0].(map[string]interface{})
+			buffer.WriteString("    <jenkins.triggers.ReverseBuildTrigger>\n")
+			buffer.WriteString("     <spec></spec>\n")
+			buffer.WriteString(fmt.Sprintf("     <upstreamProjects>%s</upstreamProjects>\n", value["projects"].(string)))
+			buffer.WriteString("     <threshold>\n")
+			switch value["threshold"] {
+			case "success":
+				buffer.WriteString("      <name>SUCCESS</name>\n")
+				buffer.WriteString("      <ordinal>0</ordinal>\n")
+				buffer.WriteString("      <color>BLUE</color>\n")
+				buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+			case "unstable":
+				buffer.WriteString("      <name>UNSTABLE</name>\n")
+				buffer.WriteString("      <ordinal>1</ordinal>\n")
+				buffer.WriteString("      <color>YELLOW</color>\n")
+				buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+			case "failure":
+				buffer.WriteString("      <name>FAILURE</name>\n")
+				buffer.WriteString("      <ordinal>2</ordinal>\n")
+				buffer.WriteString("      <color>RED</color>\n")
+				buffer.WriteString("      <completeBuild>true</completeBuild>\n")
+			}
+			buffer.WriteString("     </threshold>\n")
+			buffer.WriteString("    </jenkins.triggers.ReverseBuildTrigger>\n")
+			// TODO: whatever's left to add here...
 		}
-		buffer.WriteString("     </threshold>\n")
-		buffer.WriteString("    </jenkins.triggers.ReverseBuildTrigger>\n")
-		// TODO: whatever's left to add here...
+
+		// 2. a timer can trigger a build
+		if value, ok := d.GetOk("periodic_build_schedule"); ok {
+			value := value.(string)
+			buffer.WriteString("    <hudson.triggers.TimerTrigger>\n")
+			buffer.WriteString(fmt.Sprintf("     <spec>%s</spec>\n", value))
+			buffer.WriteString("    </hudson.triggers.TimerTrigger>\n")
+		}
+
+		// 3. a webhook from GitHub can trigger the builds
+		if value, ok := d.GetOk("github_hook_trigger"); ok {
+			value := value.(bool)
+			if value {
+				buffer.WriteString("    <com.cloudbees.jenkins.GitHubPushTrigger plugin=\"github@1.27.0\">\n")
+				buffer.WriteString("     <spec></spec>\n")
+				buffer.WriteString("    </com.cloudbees.jenkins.GitHubPushTrigger>\n")
+			}
+		}
+
+		// 4. an SCM poll can trigger a build
+		if value, ok := d.GetOk("scm_poll_trigger"); ok {
+			value := value.([]interface{})[0].(map[string]interface{})
+			buffer.WriteString("    <hudson.triggers.SCMTrigger>\n")
+			buffer.WriteString(fmt.Sprintf("     <spec>%s</spec>\n", value["schedule"].(string)))
+			buffer.WriteString(fmt.Sprintf("     <ignorePostCommitHooks>%t</ignorePostCommitHooks>\n", value["ignore_postcommit_hooks"].(bool)))
+			buffer.WriteString("    </hudson.triggers.SCMTrigger>\n")
+		}
+
 		buffer.WriteString("   </triggers>\n")
 		buffer.WriteString("  </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n")
 	}

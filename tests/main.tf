@@ -34,4 +34,20 @@ resource "jenkins_job" "first" {
 		projects					= "pipeline-archetype"
 		threshold					= "success"
 	}
+	periodic_build_schedule			= <<EOF
+# every fifteen minutes (perhaps at :07, :22, :37, :52)
+H/15 * * * *
+# every ten minutes in the first half of every hour (three times, perhaps at :04, :14, :24)
+H(0-29)/10 * * * *
+EOF
+	github_hook_trigger				= true
+	scm_poll_trigger				= {
+		schedule					= <<EOF
+# once every two hours at 45 minutes past the hour starting at 9:45 AM and finishing at 3:45 PM every weekday.
+H 9-16/2 * * 1-5
+# once in every two hours slot between 9 AM and 5 PM every weekday (perhaps at 10:38 AM, 12:38 PM, 2:38 PM, 4:38 PM)
+H H(9-16)/2 * * 1-5
+EOF
+		ignore_postcommit_hooks		= true
+	}		
 }
