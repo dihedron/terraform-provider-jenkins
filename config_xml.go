@@ -15,6 +15,10 @@ func createConfigXML(d *schema.ResourceData) string {
 	if value, ok := d.GetOk("description"); ok {
 		buffer.WriteString(fmt.Sprintf(" <description>%s</description>\n", value.(string)))
 	}
+	if value, ok := d.GetOk("display_name"); ok {
+		buffer.WriteString(fmt.Sprintf(" <displayName>%s</displayName>\n", value.(string)))
+	}
+
 	// this value is there but I don't know why...
 	buffer.WriteString(" <keepDependencies>false</keepDependencies>\n")
 	buffer.WriteString(" <properties>\n")
@@ -130,7 +134,21 @@ func createConfigXML(d *schema.ResourceData) string {
 	buffer.WriteString("  <sandbox>true</sandbox>\n")
 	buffer.WriteString(" </definition>\n")
 	buffer.WriteString(" <triggers/>\n")
-	buffer.WriteString(" <disabled>false</disabled>\n")
+
+	if value, ok := d.GetOk("quiet_period"); ok {
+		buffer.WriteString(fmt.Sprintf(" <quietPeriod>%d</quietPeriod>\n", value.(int)))
+	}
+
+	if value, ok := d.GetOk("remote_trigger_token"); ok {
+		buffer.WriteString(fmt.Sprintf(" <authToken>%s</authToken>\n", value.(string)))
+	}
+
+	if value, ok := d.GetOk("disabled"); ok {
+		buffer.WriteString(fmt.Sprintf(" <disabled>%t</disabled>\n", value.(bool)))
+	} else {
+		buffer.WriteString(" <disabled>false</disabled>\n")
+	}
+
 	buffer.WriteString("</flow-definition>\n")
 	return buffer.String()
 }

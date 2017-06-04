@@ -38,6 +38,33 @@ func resourceJenkinsJob() *schema.Resource {
 				// <description>This is the pipeline-archetype description</description>
 				//
 			},
+			"display_name": &schema.Schema{
+				Type: schema.TypeString,
+				Description: "If set, the optional display name is shown for the job throughout the Jenkins web GUI; " +
+					"it needs not be unique among all jobs, and defaults to the job name.",
+				Optional: true,
+				ForceNew: true, // TODO:remove once update is available
+				//
+				// goes into:
+				// <displayName>This is the Display name of the job</displayName>
+				//
+			},
+
+			"disabled": &schema.Schema{
+				Type:        schema.TypeBool,
+				Description: "When this option is checked, no new builds of this project will be executed.",
+				Optional:    true,
+				ForceNew:    true, // TODO:remove
+				//
+				// goes into:
+				//    [...]
+				//    <quietPeriod>5</quietPeriod>
+				//    <authToken>ABCDEFGHIJKLMN</authToken>
+				//    <disabled>true</disabled>
+				// 	</flow-definition>
+				//
+			},
+
 			"build_discard_policy": {
 				Type: schema.TypeList,
 				Description: "Determines when, if ever, build records for this project should be discarded. Build records " +
@@ -406,6 +433,40 @@ func resourceJenkinsJob() *schema.Resource {
 					//    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
 					//
 				},
+			},
+
+			"quiet_period": &schema.Schema{
+				Type: schema.TypeInt,
+				Description: "When this option is checked, newly triggered builds of this project will be added to the " +
+					"queue, but Jenkins will wait for the specified period of time before actually starting the build.",
+				Optional: true,
+				ForceNew: true, // TODO:remove
+				//
+				// goes into:
+				//    [...]
+				//    <quietPeriod>5</quietPeriod>
+				//    <authToken>ABCDEFGHIJKLMN</authToken>
+				//    <disabled>true</disabled>
+				// 	</flow-definition>
+				//
+			},
+
+			"remote_trigger_token": &schema.Schema{
+				Type: schema.TypeString,
+				Description: "Enable this option if you would like to trigger new builds by accessing a special predefined " +
+					"URL (convenient for scripts); use the following URL to trigger build remotely: " +
+					"JENKINS_URL/job/First/build?token=TOKEN_VALUE or /buildWithParameters?token=TOKEN_VALUE " +
+					"Optionally append &cause=Cause+Text to provide text that will be included in the recorded build cause.",
+				Optional: true,
+				ForceNew: true, // TODO:remove
+				//
+				// goes into:
+				//    [...]
+				//    <quietPeriod>5</quietPeriod>
+				//    <authToken>ABCDEFGHIJKLMN</authToken>
+				//    <disabled>true</disabled>
+				// 	</flow-definition>
+				//
 			},
 		},
 	}
