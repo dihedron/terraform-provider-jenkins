@@ -15,6 +15,8 @@ provider "jenkins" {
 resource "jenkins_job" "first" {
 	name 				  			= "First"
 	description			  			= "My first job description"
+	display_name					= "This is the First project display name"
+	disabled						= true		
 	build_discard_policy  			= {
 		days_to_keep_builds 		= 1
 		max_n_of_builds_to_keep 	= 2
@@ -49,5 +51,7 @@ H 9-16/2 * * 1-5
 H H(9-16)/2 * * 1-5
 EOF
 		ignore_postcommit_hooks		= true
-	}		
+	}
+	quiet_period					= 10
+	remote_trigger_token			= "ABCDEFGHJIKLMNOPQRSTUVWXYZ"
 }
