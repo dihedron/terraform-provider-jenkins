@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	jenkins "github.com/bndr/gojenkins"
@@ -36,18 +35,18 @@ func resourceJenkinsJob() *schema.Resource {
 				Required:    true,
 				ForceNew:    true,
 			},
-			"description": &schema.Schema{
-				Type:        schema.TypeString,
-				Description: "The (optional) description of the JenkinsCI job.",
-				Optional:    true,
-				ForceNew:    true, // TODO:remove once update is available
-			},
 			"display_name": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "If set, the optional display name is shown for the job throughout the Jenkins web GUI; " +
 					"it needs not be unique among all jobs, and defaults to the job name.",
 				Optional: true,
 				ForceNew: true, // TODO:remove once update is available
+			},
+			"description": &schema.Schema{
+				Type:        schema.TypeString,
+				Description: "The (optional) description of the JenkinsCI job.",
+				Optional:    true,
+				ForceNew:    true, // TODO:remove once update is available
 			},
 			"disabled": &schema.Schema{
 				Type:        schema.TypeBool,
@@ -57,9 +56,8 @@ func resourceJenkinsJob() *schema.Resource {
 			},
 			"template": &schema.Schema{
 				Type: schema.TypeString,
-				Description: "The configuration file template (e.g. as an HEREDOC) or a URL pointing to the same " +
-					"file; if the string starts with an HTTP or HTTPS schema, the plugin will automatically try to download " +
-					"it before applying the given parameters.",
+				Description: "The configuration file template; it can be provided inline (e.g. as an HEREDOC), as a web " +
+					"URL pointing to a text file (http://... or https://...), or as filesystem URL (file://...).",
 				Required: true,
 				ForceNew: true, // TODO:remove once update is available
 			},
@@ -346,7 +344,7 @@ func createConfigXML(d *schema.ResourceData) (string, error) {
 	// if necessary, download the config.xml template from the server
 	configuration = value.(string)
 	if strings.HasPrefix(configuration, "http://") || strings.HasPrefix(configuration, "https://") {
-		log.Printf("[DEBUG] jenkins::xml - retrieving template from %q", configuration)
+		log.Printf("[DEBUG] jenkins::xml - retrieving template from URL %q", configuration)
 		response, err := http.Get(configuration)
 		if err != nil {
 			log.Printf("[ERROR] jenkins::xml - error connecting to HTTP server: %v", err)
@@ -356,6 +354,15 @@ func createConfigXML(d *schema.ResourceData) (string, error) {
 		data, err := ioutil.ReadAll(response.Body)
 		if err != nil {
 			log.Printf("[ERROR] jenkins::xml - error reading HTTP server response: %v", err)
+			return "", err
+		}
+		configuration = string(data)
+	} else if strings.HasPrefix(configuration, "file://") {
+		log.Printf("[DEBUG] jenkins::xml - retrieving template from filesystem: %q", configuration)
+		configuration = strings.Replace(configuration, "file://", "", 1)
+		data, err := ioutil.ReadFile(configuration)
+		if err != nil {
+			log.Printf("[ERROR] jenkins::xml - error reading from filesystem: %v", err)
 			return "", err
 		}
 		configuration = string(data)
@@ -375,22 +382,14 @@ func createConfigXML(d *schema.ResourceData) (string, error) {
 		Name:       d.Get("name").(string),
 		Parameters: map[string]string{},
 	}
-	if value, ok := d.GetOk("description"); ok {
-		job.Description = value.(string)
-	}
 	if value, ok := d.GetOk("display_name"); ok {
 		job.DisplayName = value.(string)
 	}
+	if value, ok := d.GetOk("description"); ok {
+		job.Description = value.(string)
+	}
 	if value, ok := d.GetOk("disabled"); ok {
-		switch value := value.(type) {
-		case bool:
-			job.Disabled = value
-		case string:
-			disabled, err := strconv.ParseBool(value)
-			if err == nil {
-				job.Disabled = disabled
-			}
-		}
+		job.Disabled = value.(bool)
 	}
 	if value, ok := d.GetOk("parameters"); ok {
 		value := value.(map[string]interface{})
