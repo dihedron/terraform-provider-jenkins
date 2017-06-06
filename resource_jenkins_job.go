@@ -1,12 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"html/template"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"strings"
 
 	jenkins "github.com/bndr/gojenkins"
@@ -58,8 +53,9 @@ func resourceJenkinsJob() *schema.Resource {
 			"hash": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "This internal parameter keeps track of modifications to the template when it is not " +
-					"embedded into the job configuration; the has is computed each time the status is refreshed and " +
+					"embedded into the job configuration; the hash is computed each time the status is refreshed and " +
 					"compared with the value stored here, so that any change to the template can be detected.",
+				Optional: true,
 				Computed: true,
 			},
 		},
@@ -75,6 +71,9 @@ func resourceJenkinsJobExists(d *schema.ResourceData, meta interface{}) (b bool,
 	_, err := client.GetJob(name)
 	if err != nil {
 		log.Printf("[DEBUG] jenkins::exists - job %q does not exist: %v", name, err)
+		// TODO: check error when resource does not exist
+		// remove from state
+		d.SetId("")
 		return false, nil
 	}
 
@@ -86,18 +85,35 @@ func resourceJenkinsJobCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*jenkins.Jenkins)
 
 	name := d.Get("name").(string)
-	xml, err := createConfigXML(d)
+
+	cxt, err := NewConfigXMLTemplate(d.Get("template").(string))
 	if err != nil {
+		log.Printf("[ERROR] jenkins::create - error creating config.xml template object for %q: %v", name, err)
 		return err
 	}
+
+	sha, err := cxt.Hash()
+	if err != nil {
+		log.Printf("[ERROR] jenkins::create - error computing config.xml template hash for %q: %v", name, err)
+		return err
+	}
+
+	xml, err := cxt.BindTo(d)
+	if err != nil {
+		log.Printf("[ERROR] jenkins::create - error binding config.xml template to %q: %v", name, err)
+		return err
+	}
+
 	job, err := client.CreateJob(xml, name)
 	if err != nil {
+		log.Printf("[ERROR] jenkins::create - error creating job for %q: %v", name, err)
 		return err
 	}
 
 	log.Printf("[DEBUG] jenkins::create - job %q created", name)
 
 	d.SetId(job.GetName())
+	d.Set("hash", sha)
 	return err
 }
 
@@ -113,9 +129,22 @@ func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] jenkins::read - job %q exists", job.GetName())
+	cxt, err := NewConfigXMLTemplate(d.Get("template").(string))
+	if err != nil {
+		log.Printf("[ERROR] jenkins::read - error creating config.xml template object for %q: %v", name, err)
+		return err
+	}
+
+	sha, err := cxt.Hash()
+	if err != nil {
+		log.Printf("[ERROR] jenkins::read - error computing config.xml template hash for %q: %v", name, err)
+		return err
+	}
+
+	log.Printf("[DEBUG] jenkins::read - job %q exists (hash was %q, now %q)", job.GetName(), d.Get("hash").(string), sha)
 
 	d.SetId(job.GetName())
+	//d.Set("hash", sha)
 
 	return nil
 }
@@ -154,20 +183,32 @@ func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
 	// grab job by current name
 	job, err = client.GetJob(name)
 
-	// if the template is not embedded, retrieve it and compute its hash, then
-	// compare it against the value that was computed the last time: it may have
-	// changed on disk or on the remote web server
-	value := d.Get("template").(string)
-	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "file://") {
-		log.Printf("[DEBUG] jenkins::update - need to recompute hash for template")
+	// retrieve the template and compute its hash, then compare the new value
+	// against the value that was computed the last time and saved into the
+	// state: the template may have changed on disk or on the remote web server
+	// even if its URL hasn't
+	cxt, err := NewConfigXMLTemplate(d.Get("template").(string))
+	if err != nil {
+		log.Printf("[ERROR] jenkins::update - error creating config.xml template object for %q: %v", name, err)
+		return err
 	}
 
+	sha, err := cxt.Hash()
+	if err != nil {
+		log.Printf("[ERROR] jenkins::update - error computing config.xml template hash for %q: %v", name, err)
+		return err
+	}
+
+	templateChanged := !strings.EqualFold(d.Get("hash").(string), sha)
+	log.Printf("[DEBUG] jenkins::update - the template hash has changed? %t", templateChanged)
+
 	// at this point job has been initialised
-	if d.HasChange("display_name") || d.HasChange("description") || d.HasChange("disabled") || d.HasChange("template") || d.HasChange("parameters") {
+	if d.HasChange("display_name") || d.HasChange("description") || d.HasChange("disabled") || d.HasChange("template") || d.HasChange("parameters") || d.HasChange("hash") || templateChanged {
 		name := d.Get("name").(string)
 
-		xml, err := createConfigXML(d)
+		xml, err := cxt.BindTo(d)
 		if err != nil {
+			log.Printf("[ERROR] jenkins::update - error binding config.xml template to %q: %v", name, err)
 			return err
 		}
 
@@ -176,6 +217,9 @@ func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
 			log.Printf("[ERROR] jenkins::update - error updating job %q configuration: %v", name, err)
 			return err
 		}
+		// update the template hash in the state
+		d.Set("hash", sha)
+		d.SetPartial("hash")
 		d.SetPartial("display_name")
 		d.SetPartial("description")
 		d.SetPartial("disabled")
@@ -196,88 +240,4 @@ func resourceJenkinsJobDelete(d *schema.ResourceData, meta interface{}) error {
 
 	log.Printf("[DEBUG] jenkins_pipeline::delete - %q removed: %t", name, ok)
 	return err
-}
-
-// Job contains all the data pertaining to a Jenkins job, in a format that is
-// easy to use with Golang text/templates
-type Job struct {
-	Name        string
-	Description string
-	DisplayName string
-	Disabled    bool
-	Parameters  map[string]string
-}
-
-func createConfigXML(d *schema.ResourceData) (string, error) {
-	var configuration string
-	value, ok := d.GetOk("template")
-	if !ok {
-		log.Printf("[ERROR] jenkins::xml - invalid config.xml template")
-		return "", fmt.Errorf("Invalid config.xml template")
-	}
-
-	// if necessary, download the config.xml template from the server
-	configuration = value.(string)
-	if strings.HasPrefix(configuration, "http://") || strings.HasPrefix(configuration, "https://") {
-		log.Printf("[DEBUG] jenkins::xml - retrieving template from URL %q", configuration)
-		response, err := http.Get(configuration)
-		if err != nil {
-			log.Printf("[ERROR] jenkins::xml - error connecting to HTTP server: %v", err)
-			return "", err
-		}
-		defer response.Body.Close()
-		data, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Printf("[ERROR] jenkins::xml - error reading HTTP server response: %v", err)
-			return "", err
-		}
-		configuration = string(data)
-	} else if strings.HasPrefix(configuration, "file://") {
-		log.Printf("[DEBUG] jenkins::xml - retrieving template from filesystem: %q", configuration)
-		configuration = strings.Replace(configuration, "file://", "", 1)
-		data, err := ioutil.ReadFile(configuration)
-		if err != nil {
-			log.Printf("[ERROR] jenkins::xml - error reading from filesystem: %v", err)
-			return "", err
-		}
-		configuration = string(data)
-	}
-	log.Printf("[DEBUG] jenkins::xml - template:\n%s", configuration)
-
-	// create and parse the config.xml template
-	tpl, err := template.New("template").Parse(configuration)
-	if err != nil {
-		log.Printf("[ERROR] jenkins::xml - error parsing template: %v", err)
-		return "", err
-	}
-
-	// now copy the input parameters into a data structure that is compatible
-	// with the config.xml template
-	job := &Job{
-		Name:       d.Get("name").(string),
-		Parameters: map[string]string{},
-	}
-	if value, ok := d.GetOk("display_name"); ok {
-		job.DisplayName = value.(string)
-	}
-	if value, ok := d.GetOk("description"); ok {
-		job.Description = value.(string)
-	}
-	if value, ok := d.GetOk("disabled"); ok {
-		job.Disabled = value.(bool)
-	}
-	if value, ok := d.GetOk("parameters"); ok {
-		value := value.(map[string]interface{})
-		for k, v := range value {
-			job.Parameters[k] = v.(string)
-		}
-	}
-
-	// apply the job object to the template
-	var buffer bytes.Buffer
-	err = tpl.Execute(&buffer, job)
-	if err != nil {
-		log.Printf("[ERROR] jenkis::xml - error executing template: %v", err)
-	}
-	return buffer.String(), nil
 }
