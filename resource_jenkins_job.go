@@ -26,40 +26,41 @@ func resourceJenkinsJob() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "The unique name of the JenkinsCI job.",
 				Required:    true,
-				//ForceNew:    true,
 			},
 			"display_name": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "If set, the optional display name is shown for the job throughout the Jenkins web GUI; " +
 					"it needs not be unique among all jobs, and defaults to the job name.",
 				Optional: true,
-				//ForceNew: true, // TODO:remove once update is available
 			},
 			"description": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "The (optional) description of the JenkinsCI job.",
 				Optional:    true,
-				//ForceNew:    true, // TODO:remove once update is available
 			},
 			"disabled": &schema.Schema{
 				Type:        schema.TypeBool,
 				Description: "When this option is checked, no new builds of this project will be executed.",
 				Optional:    true,
-				//ForceNew:    true, // TODO:remove
 			},
 			"template": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "The configuration file template; it can be provided inline (e.g. as an HEREDOC), as a web " +
 					"URL pointing to a text file (http://... or https://...), or as filesystem URL (file://...).",
 				Required: true,
-				//ForceNew: true, // TODO:remove once update is available
 			},
 			"parameters": {
 				Type:        schema.TypeMap,
 				Description: "The set of parameters to be set in the template to generate a valid config.xml file.",
 				Optional:    true,
-				//ForceNew:    true, // TODO: remove
-				Elem: schema.TypeString,
+				Elem:        schema.TypeString,
+			},
+			"hash": &schema.Schema{
+				Type: schema.TypeString,
+				Description: "This internal parameter keeps track of modifications to the template when it is not " +
+					"embedded into the job configuration; the has is computed each time the status is refreshed and " +
+					"compared with the value stored here, so that any change to the template can be detected.",
+				Computed: true,
 			},
 		},
 	}
@@ -120,6 +121,7 @@ func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
+	var name string
 	client := meta.(*jenkins.Jenkins)
 
 	d.Partial(true)
@@ -144,9 +146,20 @@ func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
 
 		log.Printf("[DEBUG] jenkins::update - job %q renamed to %q", old.(string), new.(string))
 		d.SetPartial("name")
+		name = new.(string)
 	} else {
-		// job has not been renamed, grab it by current name
-		job, err = client.GetJob(d.Get("name").(string))
+		name = d.Get("name").(string)
+	}
+
+	// grab job by current name
+	job, err = client.GetJob(name)
+
+	// if the template is not embedded, retrieve it and compute its hash, then
+	// compare it against the value that was computed the last time: it may have
+	// changed on disk or on the remote web server
+	value := d.Get("template").(string)
+	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "file://") {
+		log.Printf("[DEBUG] jenkins::update - need to recompute hash for template")
 	}
 
 	// at this point job has been initialised
