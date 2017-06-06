@@ -84,15 +84,15 @@ func resourceJenkinsJobExists(d *schema.ResourceData, meta interface{}) (b bool,
 	client := meta.(*jenkins.Jenkins)
 	name := d.Get("name").(string)
 
-	log.Printf("[DEBUG] jenkins_job::exists - checking if job %q exists", name)
+	log.Printf("[DEBUG] jenkins::exists - checking if job %q exists", name)
 
 	_, err := client.GetJob(name)
 	if err != nil {
-		log.Printf("[DEBUG] jenkins_job::exists - job %q does not exist: %v", name, err)
+		log.Printf("[DEBUG] jenkins::exists - job %q does not exist: %v", name, err)
 		return false, nil
 	}
 
-	log.Printf("[DEBUG] jenkins_job::exists - job %q exists", name)
+	log.Printf("[DEBUG] jenkins::exists - job %q exists", name)
 	return true, nil
 }
 
@@ -119,15 +119,15 @@ func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*jenkins.Jenkins)
 	name := d.Get("name").(string)
 
-	log.Printf("[DEBUG] jenkins_job::read - looking for job %q", name)
+	log.Printf("[DEBUG] jenkins::read - looking for job %q", name)
 
 	job, err := client.GetJob(name)
 	if err != nil {
-		log.Printf("[DEBUG] jenkins_job::read - job %q does not exist: %v", name, err)
+		log.Printf("[DEBUG] jenkins::read - job %q does not exist: %v", name, err)
 		return err
 	}
 
-	log.Printf("[DEBUG] jenkins_job::read - job %q exists", job.GetName())
+	log.Printf("[DEBUG] jenkins::read - job %q exists", job.GetName())
 
 	d.SetId(job.GetName())
 	//d.Set("name", job.GetName())
