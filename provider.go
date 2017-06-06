@@ -19,7 +19,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("JENKINS_CA_CERT", nil),
-				Description: "The path to the JenkinsCi serlf-signed certificate.",
+				Description: "The path to the JenkinsCi self-signed certificate.",
 			},
 			"username": &schema.Schema{
 				Type:        schema.TypeString,
