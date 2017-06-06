@@ -17,68 +17,53 @@ func resourceJenkinsJob() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceJenkinsJobCreate,
 		Read:   resourceJenkinsJobRead,
-		//Update: resourceJenkinsJobUpdate,
+		Update: resourceJenkinsJobUpdate,
 		Delete: resourceJenkinsJobDelete,
 		Exists: resourceJenkinsJobExists,
-
-		/*
-			Importer: &schema.ResourceImporter{
-				State: resourceJenkinsJobImport,
-			},
-		*/
-
 		Schema: map[string]*schema.Schema{
 			// this is the job's ID (primary key)
 			"name": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "The unique name of the JenkinsCI job.",
 				Required:    true,
-				ForceNew:    true,
+				//ForceNew:    true,
 			},
 			"display_name": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "If set, the optional display name is shown for the job throughout the Jenkins web GUI; " +
 					"it needs not be unique among all jobs, and defaults to the job name.",
 				Optional: true,
-				ForceNew: true, // TODO:remove once update is available
+				//ForceNew: true, // TODO:remove once update is available
 			},
 			"description": &schema.Schema{
 				Type:        schema.TypeString,
 				Description: "The (optional) description of the JenkinsCI job.",
 				Optional:    true,
-				ForceNew:    true, // TODO:remove once update is available
+				//ForceNew:    true, // TODO:remove once update is available
 			},
 			"disabled": &schema.Schema{
 				Type:        schema.TypeBool,
 				Description: "When this option is checked, no new builds of this project will be executed.",
 				Optional:    true,
-				ForceNew:    true, // TODO:remove
+				//ForceNew:    true, // TODO:remove
 			},
 			"template": &schema.Schema{
 				Type: schema.TypeString,
 				Description: "The configuration file template; it can be provided inline (e.g. as an HEREDOC), as a web " +
 					"URL pointing to a text file (http://... or https://...), or as filesystem URL (file://...).",
 				Required: true,
-				ForceNew: true, // TODO:remove once update is available
+				//ForceNew: true, // TODO:remove once update is available
 			},
 			"parameters": {
 				Type:        schema.TypeMap,
 				Description: "The set of parameters to be set in the template to generate a valid config.xml file.",
 				Optional:    true,
-				ForceNew:    true, // TODO: remove
-				Elem:        schema.TypeString,
+				//ForceNew:    true, // TODO: remove
+				Elem: schema.TypeString,
 			},
 		},
 	}
 }
-
-/*
-func resourceLDAPObjectImport(d *schema.ResourceData, meta interface{}) (imported []*schema.ResourceData, err error) {
-	err = resourceLDAPObjectRead(d, meta)
-	imported = append(imported, d)
-	return
-}
-*/
 
 func resourceJenkinsJobExists(d *schema.ResourceData, meta interface{}) (b bool, e error) {
 	client := meta.(*jenkins.Jenkins)
@@ -112,7 +97,7 @@ func resourceJenkinsJobCreate(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] jenkins::create - job %q created", name)
 
 	d.SetId(job.GetName())
-	return err //resourceLDAPObjectRead(d, meta)
+	return err
 }
 
 func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
@@ -130,67 +115,63 @@ func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] jenkins::read - job %q exists", job.GetName())
 
 	d.SetId(job.GetName())
-	//d.Set("name", job.GetName())
 
 	return nil
 }
 
-/*
-func resourceLDAPObjectUpdate(d *schema.ResourceData, meta interface{}) error {
-	client := meta.(*ldap.Conn)
+func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
+	client := meta.(*jenkins.Jenkins)
 
-	log.Printf("[DEBUG] ldap_object::update - performing update on %q", d.Id())
+	d.Partial(true)
 
-	request := ldap.NewModifyRequest(d.Id())
+	var job *jenkins.Job
+	var err error
 
-	// handle objectClasses
-	if d.HasChange("object_classes") {
-		classes := []string{}
-		for _, oc := range (d.Get("object_classes").(*schema.Set)).List() {
-			classes = append(classes, oc.(string))
+	if d.HasChange("name") {
+		old, new := d.GetChange("name")
+
+		job, err = client.GetJob(old.(string))
+		if err != nil {
+			log.Printf("[ERROR] jenkins::update - error retrieving job %q", old.(string))
+			return err
 		}
-		log.Printf("[DEBUG] ldap_object::update - updating classes of %q, new value: %v", d.Id(), classes)
-		request.ReplaceAttributes = []ldap.PartialAttribute{
-			ldap.PartialAttribute{
-				Type: "objectClass",
-				Vals: classes,
-			},
+
+		ok, err := job.Rename(new.(string))
+		if !ok || err != nil {
+			log.Printf("[ERROR] jenkins::update - error renaming job %q to %q: %v", old.(string), new.(string), err)
+			return err
 		}
+
+		log.Printf("[DEBUG] jenkins::update - job %q renamed to %q", old.(string), new.(string))
+		d.SetPartial("name")
+	} else {
+		// job has not been renamed, grab it by current name
+		job, err = client.GetJob(d.Get("name").(string))
 	}
 
-	if d.HasChange("attributes") {
+	// at this point job has been initialised
+	if d.HasChange("display_name") || d.HasChange("description") || d.HasChange("disabled") || d.HasChange("template") || d.HasChange("parameters") {
+		name := d.Get("name").(string)
 
-		o, n := d.GetChange("attributes")
-		log.Printf("[DEBUG] ldap_object::update - \n%s", printAttributes("old attributes map", o))
-		log.Printf("[DEBUG] ldap_object::update - \n%s", printAttributes("new attributes map", n))
+		xml, err := createConfigXML(d)
+		if err != nil {
+			return err
+		}
 
-		added, changed, removed := computeDeltas(o.(*schema.Set), n.(*schema.Set))
-		if len(added) > 0 {
-			log.Printf("[DEBUG] ldap_object::update - %d attributes added", len(added))
-			request.AddAttributes = added
+		err = job.UpdateConfig(xml)
+		if err != nil {
+			log.Printf("[ERROR] jenkins::update - error updating job %q configuration: %v", name, err)
+			return err
 		}
-		if len(changed) > 0 {
-			log.Printf("[DEBUG] ldap_object::update - %d attributes changed", len(changed))
-			if request.ReplaceAttributes == nil {
-				request.ReplaceAttributes = changed
-			} else {
-				request.ReplaceAttributes = append(request.ReplaceAttributes, changed...)
-			}
-		}
-		if len(removed) > 0 {
-			log.Printf("[DEBUG] ldap_object::update - %d attributes removed", len(removed))
-			request.DeleteAttributes = removed
-		}
+		d.SetPartial("display_name")
+		d.SetPartial("description")
+		d.SetPartial("disabled")
+		d.SetPartial("template")
+		d.SetPartial("parameters")
 	}
-
-	err := client.Modify(request)
-	if err != nil {
-		log.Printf("[ERROR] ldap_object::update - error modifying LDAP object %q with values %v", d.Id(), err)
-		return err
-	}
-	return resourceLDAPObjectRead(d, meta)
+	d.Partial(false)
+	return nil
 }
-*/
 
 func resourceJenkinsJobDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*jenkins.Jenkins)
@@ -203,125 +184,6 @@ func resourceJenkinsJobDelete(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[DEBUG] jenkins_pipeline::delete - %q removed: %t", name, ok)
 	return err
 }
-
-/*
-// computes the hash of the map representing an attribute in the attributes set
-func attributeHash(v interface{}) int {
-	m := v.(map[string]interface{})
-	var buffer bytes.Buffer
-	buffer.WriteString("map {")
-	for k, v := range m {
-		buffer.WriteString(fmt.Sprintf("%q := %q;", k, v.(string)))
-	}
-	buffer.WriteRune('}')
-	text := buffer.String()
-	hash := hashcode.String(text)
-	return hash
-}
-
-func printAttributes(prefix string, attributes interface{}) string {
-	var buffer bytes.Buffer
-	buffer.WriteString(fmt.Sprintf("%s: {\n", prefix))
-	if attributes, ok := attributes.(*schema.Set); ok {
-		for _, attribute := range attributes.List() {
-			for k, v := range attribute.(map[string]interface{}) {
-				buffer.WriteString(fmt.Sprintf("    %q: %q\n", k, v.(string)))
-			}
-		}
-		buffer.WriteRune('}')
-	}
-	return buffer.String()
-}
-
-func computeDeltas(os, ns *schema.Set) (added, changed, removed []ldap.PartialAttribute) {
-
-	rk := NewSet() // names of removed attributes
-	for _, v := range os.Difference(ns).List() {
-		for k := range v.(map[string]interface{}) {
-			rk.Add(k)
-		}
-	}
-
-	ak := NewSet() // names of added attributes
-	for _, v := range ns.Difference(os).List() {
-		for k := range v.(map[string]interface{}) {
-			ak.Add(k)
-		}
-	}
-
-	kk := NewSet() // names of kept attributes
-	for _, v := range ns.Intersection(os).List() {
-		for k := range v.(map[string]interface{}) {
-			kk.Add(k)
-		}
-	}
-
-	ck := NewSet() // names of changed attributes
-
-	// loop over remove attributes' names
-	for _, k := range rk.List() {
-		if !ak.Contains(k) && !kk.Contains(k) {
-			// one value under this name has been removed, no other value has
-			// been added back, and there is no further value under the same
-			// name among those that were untouched; this means that it has
-			// been dropped and must go among the RemovedAttributes
-			log.Printf("[DEBUG} ldap_object::deltas - dropping attribute %q", k)
-			removed = append(removed, ldap.PartialAttribute{
-				Type: k,
-				Vals: []string{},
-			})
-		} else {
-			ck.Add(k)
-		}
-	}
-
-	for _, k := range ak.List() {
-		if !rk.Contains(k) && !kk.Contains(k) {
-			// this is the first value under this name: no value is being
-			// removed and no value is being kept; so we're adding this new
-			// attribute to the LDAP object (AddedAttributes), getting all
-			// the values under this name from the new set
-			values := []string{}
-			for _, m := range ns.List() {
-				for mk, mv := range m.(map[string]interface{}) {
-					if k == mk {
-						values = append(values, mv.(string))
-					}
-				}
-			}
-			added = append(added, ldap.PartialAttribute{
-				Type: k,
-				Vals: values,
-			})
-			log.Printf("[DEBUG} ldap_object::deltas - adding new attribute %q with values %v", k, values)
-		} else {
-			ck.Add(k)
-		}
-	}
-
-	// now loop over changed attributes and
-	for _, k := range ck.List() {
-		// the attributes in this set have been changed, in that a new value has
-		// been added or removed and it was not the last/first one; so we're
-		// adding this new attribute to the LDAP object (ModifiedAttributes),
-		// getting all the values under this name from the new set
-		values := []string{}
-		for _, m := range ns.List() {
-			for mk, mv := range m.(map[string]interface{}) {
-				if k == mk {
-					values = append(values, mv.(string))
-				}
-			}
-		}
-		changed = append(added, ldap.PartialAttribute{
-			Type: k,
-			Vals: values,
-		})
-		log.Printf("[DEBUG} ldap_object::deltas - changing attribute %q with values %v", k, values)
-	}
-	return
-}
-*/
 
 // Job contains all the data pertaining to a Jenkins job, in a format that is
 // easy to use with Golang text/templates
