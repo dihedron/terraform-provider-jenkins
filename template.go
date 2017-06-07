@@ -166,5 +166,8 @@ func (c *ConfigXMLTemplate) BindTo(d *schema.ResourceData) (string, error) {
 		log.Printf("[ERROR] jenkis::xml - error executing template: %v", err)
 		return "", err
 	}
-	return buffer.String(), nil
+
+	xml := buffer.String()
+	log.Printf("[DEBUG] jenkins::xml - bound template:\n%s", xml)
+	return xml, nil
 }
