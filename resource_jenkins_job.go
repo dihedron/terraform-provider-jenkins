@@ -92,7 +92,7 @@ func resourceJenkinsJobCreate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	sha, err := cxt.Hash()
+	sha, err := cxt.ComputedHash()
 	if err != nil {
 		log.Printf("[ERROR] jenkins::create - error computing config.xml template hash for %q: %v", name, err)
 		return err
@@ -135,7 +135,7 @@ func resourceJenkinsJobRead(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	sha, err := cxt.Hash()
+	sha, err := cxt.ComputedHash()
 	if err != nil {
 		log.Printf("[ERROR] jenkins::read - error computing config.xml template hash for %q: %v", name, err)
 		return err
@@ -193,7 +193,7 @@ func resourceJenkinsJobUpdate(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	sha, err := cxt.Hash()
+	sha, err := cxt.ComputedHash()
 	if err != nil {
 		log.Printf("[ERROR] jenkins::update - error computing config.xml template hash for %q: %v", name, err)
 		return err

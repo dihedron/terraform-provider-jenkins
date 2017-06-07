@@ -35,6 +35,8 @@ func NewConfigXMLTemplate(input string) (*ConfigXMLTemplate, error) {
 	if re.MatchString(input) {
 		source = input[:len(input)-33]
 		configuration.hash = input[len(input)-32:]
+	} else {
+		source = input
 	}
 
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
