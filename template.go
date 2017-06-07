@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha512"
+	"crypto/md5"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"encoding/hex"
@@ -17,25 +18,28 @@ import (
 
 // ConfigXMLTemplate represents a config.xml template as an object.
 type ConfigXMLTemplate struct {
-	template string
-}
-
-func (c *ConfigXMLTemplate) String() string {
-	if c == nil {
-		return ""
-	}
-	return c.template
+	source string
+	data   string
+	hash   string
 }
 
 // NewConfigXMLTemplate creates a new ConfigXMLTemplate using the provided
 // address or inline/embedded data.
-func NewConfigXMLTemplate(from string) (*ConfigXMLTemplate, error) {
+func NewConfigXMLTemplate(input string) (*ConfigXMLTemplate, error) {
 
-	config := &ConfigXMLTemplate{}
+	configuration := &ConfigXMLTemplate{}
+	var source string
 
-	if strings.HasPrefix(from, "http://") || strings.HasPrefix(from, "https://") {
-		log.Printf("[DEBUG] jenkins::xml - retrieving template from URL %q", from)
-		response, err := http.Get(from)
+	// extract data and hash, if the hash is there
+	re := regexp.MustCompile(`.*@[a-f0-9]{32}$`)
+	if re.MatchString(input) {
+		source = input[:len(input)-33]
+		configuration.hash = input[len(input)-32:]
+	}
+
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		log.Printf("[DEBUG] jenkins::xml - retrieving template from URL %q", source)
+		response, err := http.Get(source)
 		if err != nil {
 			log.Printf("[ERROR] jenkins::xml - error connecting to HTTP server: %v", err)
 			return nil, err
@@ -46,31 +50,61 @@ func NewConfigXMLTemplate(from string) (*ConfigXMLTemplate, error) {
 			log.Printf("[ERROR] jenkins::xml - error reading HTTP server response: %v", err)
 			return nil, err
 		}
-		config.template = string(data)
-	} else if strings.HasPrefix(from, "file://") {
-		log.Printf("[DEBUG] jenkins::xml - retrieving template from filesystem: %q", from)
-		from = strings.Replace(from, "file://", "", 1)
+		configuration.source = source
+		configuration.data = string(data)
+	} else if strings.HasPrefix(source, "file://") {
+		log.Printf("[DEBUG] jenkins::xml - retrieving template from filesystem: %q", source)
+		from := strings.Replace(source, "file://", "", 1)
 		data, err := ioutil.ReadFile(from)
 		if err != nil {
 			log.Printf("[ERROR] jenkins::xml - error reading from filesystem: %v", err)
 			return nil, err
 		}
-		config.template = string(data)
+		configuration.source = source
+		configuration.data = string(data)
 	} else {
-		log.Printf("[DEBUG] jenkins::xml - template is inline: %q", from)
-		config.template = from
+		log.Printf("[DEBUG] jenkins::xml - template is inline: %q", source)
+		configuration.source = ""
+		configuration.data = source
 	}
-
-	return config, nil
+	return configuration, nil
 }
 
-// Hash returns the SHA-256 hash of the current (unbound) template.
-func (c *ConfigXMLTemplate) Hash() (string, error) {
+func (c *ConfigXMLTemplate) GetTemplateID() (string, error) {
 	if c == nil {
 		log.Printf("[ERROR] jenkins::xml - invalid config.xml template object")
 		return "", fmt.Errorf("Invalid config.xml template object")
 	}
-	hash := sha512.Sum512([]byte(c.template))
+
+	if len(c.source) == 0 {
+		// inline template
+		return c.data, nil
+	} else {
+		// indirect template
+		hash, _ := c.ComputedHash()
+		return fmt.Sprintf("%s@%s", c.source, hash), nil
+	}
+}
+
+// RecordedHash returns the hash as recorded in the original input, if available.
+func (c *ConfigXMLTemplate) RecordedHash() (string, error) {
+	if c == nil {
+		log.Printf("[ERROR] jenkins::xml - invalid config.xml template object")
+		return "", fmt.Errorf("Invalid config.xml template object")
+	}
+
+	return c.hash, nil
+}
+
+// ComputedHash returns the SHA-256 hash of the current (unbound) template.
+func (c *ConfigXMLTemplate) ComputedHash() (string, error) {
+	if c == nil {
+		log.Printf("[ERROR] jenkins::xml - invalid config.xml template object")
+		return "", fmt.Errorf("Invalid config.xml template object")
+	}
+
+	//hash := sha512.Sum512([]byte(c.template))
+	hash := md5.Sum([]byte(c.data))
 	return strings.ToLower(hex.EncodeToString(hash[:])), nil
 }
 
@@ -81,10 +115,11 @@ func (c *ConfigXMLTemplate) BindTo(d *schema.ResourceData) (string, error) {
 		log.Printf("[ERROR] jenkins::xml - invalid config.xml template object")
 		return "", fmt.Errorf("Invalid config.xml template object")
 	}
-	log.Printf("[DEBUG] jenkins::xml - binding template:\n%s", c.template)
+
+	log.Printf("[DEBUG] jenkins::xml - binding template:\n%s", c.data)
 
 	// create and parse the config.xml template
-	tpl, err := template.New("template").Parse(c.template)
+	tpl, err := template.New("template").Parse(c.data)
 	if err != nil {
 		log.Printf("[ERROR] jenkins::xml - error parsing template: %v", err)
 		return "", err
