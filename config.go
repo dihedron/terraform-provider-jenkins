@@ -16,7 +16,7 @@ type Config struct {
 
 func (c *Config) getAPIClient() (*jenkins.Jenkins, error) {
 
-	client := jenkins.CreateJenkins(c.ServerURL, c.Username, c.Password)
+	client := jenkins.CreateJenkins(nil, c.ServerURL, c.Username, c.Password)
 	if c.CACert != "" {
 		// provide CA certificate if server is using self-signed certificate
 		client.Requester.CACert, _ = ioutil.ReadFile(c.CACert)
