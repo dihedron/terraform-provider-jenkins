@@ -15,7 +15,7 @@ Then add the plugin to your local `.terraformrc` :
 ```
 cat >> ~/.terraformrc <<EOF
 providers {
-    ldap = "${GOPATH}/bin/terraform-provider-jenkins"
+    jenkins = "${GOPATH}/bin/terraform-provider-jenkins"
 }
 EOF
 ```
