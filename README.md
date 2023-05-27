@@ -24,20 +24,45 @@ EOF
 
 In order to create Jobs inside of your Jenkins installation, you need to describe them in your Terraform file (`.tf`).
 
-Unfortunately Jenkins APIs lack abstraction and in order to create a Job you need to post a whole XML describing the Job itself and the configuration of the plugins you have in your installation. Thus, in order to create resources you need to either embed the XML inside the `.tf` file or provide the path to a file that contains the template.
+Unfortunately Jenkins APIs lack abstraction and in order to create a Job you need to post the whole XML file (config.xml) describing the Job. This can be done either by embedding the XML inside the `.tf` file or providing the path to a file that contains the Job template.
 
-You can check how you can do it in the `tests/` directory, where the `main.tf` provides both examples; the second one refers to a separate `job_template.xml` which is in the same directory.
+This provider allows to create a template Job descriptor in XML format with variables, and then specifying the values in the resource descriptor in the Terraform file: 
 
-### Where do I get the Job XML template?
+```hcl
+resource "jenkins_job" "second" {
+	name 				  			   = "Second"
+	display_name					   = "The Second Project Display Name"
+	description			  			   = "The second job is created from a file on disk"
+	disabled						   = true
+	parameters  					   = {
+		KeepDependencies 			   = true,
+		GitLabConnection			   = "http://gitlab.example.com/my-second-project/project.git",
+		TriggerOnPush				   = true,
+		TriggerOnMergeRequest		   = true,
+		TriggerOpenMergeRequestOnPush  = "never",
+		TriggerOnNoteRequest           = true,
+		NoteRegex                      = "Jenkins please retry a build",
+		CISkip                         = true,
+		SkipWorkInProgressMergeRequest = true,
+		SetBuildDescription            = true,
+		BranchFilterType               = "All",
+		SecretToken                    = "{AQAAABAAAAAQwt1GRY9q3ZVQO3gt3epgTsk5dMX+jSacfO7NOzm5Eyk=}",
+		UserRemoteConfig			   = "https://gitlab.example.com/confmgmt/user-web.git",
+		BranchSpec                     = "*/master",
+		GenerateSubmoduleConfiguration = false,
+	}
+	template						   = "file://./job_template.xml"
+}
+```
+The `parameters` section is a map whose keys can be arbitrarily defined to match those in the `temaplate`.
+
+You can check the `tests/` directory, where the `main.tf` provides both an embedded template and an external one (a separate `job_template.xml` in the same directory).
+
+### Where do I get the Job's XML template?
 
 Create a Project manually, then look for the XML file that was created on the Jenkins server; that file is your starting point.
-You can replace some of the hardcoded values you provided during the manual configuration process with template variables (google "Golang templates" for an overview of how templating work in Go).
-Again the `job_template.xml` file was produced like this, and then edited to "templatise" some of the values.
 
-Thus, if you need to create three types of Jobs:
+You can replace some of the hardcoded values you provided during the manual configuration process with template variables you can place in the `parameters` section. In order to learn how to work with "GOlang templates", just google it, there is plenty of documentation available. In a few words, if you place `MYVar = MyValue` in the `parameters` section, you can use `{{ .MyVar }}` and the provider will automatically replace it with `MyValue`.
 
-1. create them manually
-2. retrieve the three XMLs from your Jenkins server
-3. templatise and save them as `job1.xml`, `job2.xml` and `job3.xml` 
-4. proceed with your Terraform files, referring back to the templates as neecessary (see the second job in `tests/main.tf` to see how.
+The `job_template.xml` file was produced like this, and then edited to "templatise" some of the values.
 
